@@ -19,7 +19,7 @@ public class ErrorResponse {
         this.message = message;
         this.timestamp = LocalDateTime.now();
     }
-    
+
     public ErrorResponse(String message, String path) {
         this.success = false;
         this.message = message;
