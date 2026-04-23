@@ -29,8 +29,8 @@ public class TestController {
     @PostMapping("/create-student")
     public Map<String, Object> createTestStudent(){
         Student student = studentService.registerStudent(
-                "Ayanda Mtshali",
-                "251112223",
+                "Tumelo Patja",
+                "21121456",
                 "3H"
         );
 
