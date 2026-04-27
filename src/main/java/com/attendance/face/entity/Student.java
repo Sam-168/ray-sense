@@ -21,7 +21,7 @@ public class Student {
 
     @Column(name = "user_id", unique = true)
     private Long userId;
-    
+
     @Column(nullable = false, length = 100)
     private String fullName;
 
