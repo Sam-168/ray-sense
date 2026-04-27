@@ -12,8 +12,6 @@ public class AttendanceMarkRequest {
 
     @NotNull(message = "Student ID is required")
 
-    private Long studentId;
-
     private String captureSource;
 
     private String sessionId;
