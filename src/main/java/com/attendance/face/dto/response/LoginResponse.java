@@ -15,7 +15,7 @@ public class LoginResponse {
     private String email;
     private String fullName;
 
-    
+
     private Long studentId;
     private Long lecturerId;
     private Long adminId;
