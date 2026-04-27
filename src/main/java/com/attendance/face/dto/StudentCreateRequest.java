@@ -21,4 +21,7 @@ public class StudentCreateRequest {
     @Size(max = 50, message = "Class ID cannot 50 characters")
     private String classId;
 
+    @NotBlank(message = "Photo is required")
+    private String photo;
+
 }
