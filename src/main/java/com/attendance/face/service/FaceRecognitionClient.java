@@ -32,7 +32,7 @@ public class FaceRecognitionClient {
      * Create face encoding from student photo
      */
     public FaceEncodingResponse createEncoding(Long studentId, String imageBase64) {
-        String url = pythonServiceUrl + "/encode";
+        String url = pythonServiceUrl + "/register-face";
 
         FaceEncodingRequest request = new FaceEncodingRequest(studentId, imageBase64);
 
