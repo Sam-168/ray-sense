@@ -25,12 +25,5 @@ public class AuthController {
         LoginResponse response = authService.login(request);
         return ResponseEntity.ok(response);
     }
-
-
-    @PostMapping("/register/student")
-    public ResponseEntity<LoginResponse> registerStudent(
-            @Valid @RequestBody StudentCreateRequest request) {
-        LoginResponse response = authService.registerStudent(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
+    
 }
