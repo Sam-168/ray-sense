@@ -73,6 +73,8 @@ public class JwtService {
 
     public boolean isTokenExpired(String token) {
         try {
+            System.out.println("Expiration: " + extractExpiration(token));
+            System.out.println("Now: " + new Date());
             return extractExpiration(token).before(new Date());
         } catch (Exception e) {
             return true;
