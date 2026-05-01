@@ -66,7 +66,9 @@ public class JwtAuthenticationFilter  extends OncePerRequestFilter {
 
                     // Step 7: Validate token
                     if (jwtService.isTokenValid(token, email) && user.getIsActive()) {
-
+                        System.out.println("ROLE FROM DB: " + user.getRole());
+                        System.out.println("ROLE NAME(): " + user.getRole().name());
+                        System.out.println("GRANTED AUTH: ROLE_" + user.getRole().name());
                         // Step 8: Create Spring Security authentication object
                         // This tells Spring Security "this user is authenticated"
                         var authToken = new UsernamePasswordAuthenticationToken(
