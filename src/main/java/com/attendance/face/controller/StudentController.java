@@ -4,7 +4,9 @@ import com.attendance.face.dto.StudentCreateRequest;
 import com.attendance.face.dto.StudentResponse;
 import com.attendance.face.dto.StudentUpdateRequest;
 import com.attendance.face.dto.response.FaceEncodingResponse;
+import com.attendance.face.dto.response.LoginResponse;
 import com.attendance.face.entity.Student;
+import com.attendance.face.service.AuthService;
 import com.attendance.face.service.StudentService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,13 +25,15 @@ import java.util.stream.Collectors;
 public class StudentController {
 
     private final StudentService studentService;
+    private final AuthService authService;
     private final FaceRecognitionClient faceRecognitionClient;
 
     @Autowired
-    public StudentController(StudentService studentService, FaceRecognitionClient faceRecognitionClient){
+    public StudentController(StudentService studentService, FaceRecognitionClient faceRecognitionClient, AuthService authService){
 
         this.studentService = studentService;
         this.faceRecognitionClient = faceRecognitionClient;
+        this.authService = authService;
     }
 
     @PostMapping
@@ -112,37 +116,11 @@ public class StudentController {
      * POST /api/students/register-with-photo
      */
     @PostMapping("/register-with-photo")
-    public ResponseEntity<StudentResponse> registerStudentWithPhoto(
+    public ResponseEntity<LoginResponse> registerStudentWithPhoto(
             @RequestBody @Valid StudentCreateRequest request) throws IOException {
 
-        Student student = studentService.registerStudent(
-                request.getFullName(),
-                request.getStudentNumber(),
-                request.getClassId()
-        );
-
-        try {
-            String imageBase64 = request.getPhoto();
-
-            FaceEncodingResponse response = faceRecognitionClient.createEncoding(
-                    student.getId(),
-                    imageBase64
-            );
-
-            if (response.isSuccess()) {
-                student = studentService.updateFaceEncoding(
-                        student.getId(),
-                        response.getEncodingPath()
-                );
-            } else {
-                throw new RuntimeException("Face registration failed: " + response.getMessage());
-            }
-
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to register face: " + e.getMessage());
-        }
-
+        LoginResponse response = authService.registerStudent(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new StudentResponse(student));
+                .body(response);
     }
 }
