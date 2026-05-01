@@ -123,28 +123,34 @@ public class AttendanceController {
      */
     @PostMapping("/mark-by-face")
     public ResponseEntity<AttendanceResponse> markAttendanceByFace(
-            @RequestParam("photo") MultipartFile photo,
-            @RequestParam(required = false, defaultValue = "student-checkin") String captureSource) throws IOException {
+            @RequestBody String photo,
+            @RequestParam(required = false, defaultValue = "student-checkin") String captureSource
+    ) {
+
         System.out.println("=== START: markAttendanceByFace ===");
-        if (photo.isEmpty()) {
+
+        if (photo == null || photo.isBlank()) {
             throw new IllegalArgumentException("Photo is required");
         }
-        System.out.println("Photo received: " + photo.getOriginalFilename() + ", Size: " + photo.getSize());
-        // Convert photo to base64
-        String imageBase64 = Base64.getEncoder().encodeToString(photo.getBytes());
-        System.out.println("Converted to base64, length: " + imageBase64.length());
+
+        System.out.println("Base64 photo received, length: " + photo.length());
+
+        // The frontend already sends base64 → no need to re-encode
+        String imageBase64 = photo;
+
         // Get all active students with encodings
         List<Student> activeStudents = studentService.getActiveStudents().stream()
                 .filter(s -> s.getFaceEncodingPath() != null)
                 .collect(Collectors.toList());
+
         System.out.println("Found " + activeStudents.size() + " active students with encodings");
+
         // Prepare known encodings list for Python
         List<Map<String, Object>> knownEncodings = activeStudents.stream()
                 .map(student -> {
                     Map<String, Object> map = new HashMap<>();
                     map.put("studentId", student.getId());
                     map.put("encodingPath", student.getFaceEncodingPath());
-                    System.out.println("  - Student ID: " + student.getId() + ", Encoding: " + student.getFaceEncodingPath());
                     return map;
                 })
                 .collect(Collectors.toList());
@@ -155,46 +161,45 @@ public class AttendanceController {
         Map<String, Object> request = new HashMap<>();
         request.put("imageBase64", imageBase64);
         request.put("knownEncodings", knownEncodings);
+
         System.out.println("Calling Python service at: " + url);
+
         try {
             ResponseEntity<Map> response = restTemplate.postForEntity(url, request, Map.class);
-            System.out.println("Python response status: " + response.getStatusCode());
+
             Map<String, Object> result = response.getBody();
 
             if (result == null) {
-                System.err.println("ERROR: Empty response from Python service");
                 throw new RuntimeException("Empty response from face recognition service");
             }
-            System.out.println("Python response body: " + result);
+
             Boolean faceDetected = (Boolean) result.get("faceDetected");
             Boolean matched = (Boolean) result.get("matched");
-            System.out.println("Face detected: " + faceDetected);
-            System.out.println("Matched: " + matched);
-            if (!faceDetected) {
-                System.err.println("ERROR: No face detected");
+
+            if (!Boolean.TRUE.equals(faceDetected)) {
                 throw new RuntimeException("No face detected in photo");
             }
 
-            if (!matched) {
-                System.err.println("ERROR: Face not recognized");
+            if (!Boolean.TRUE.equals(matched)) {
                 throw new RuntimeException("Face not recognized");
             }
 
-            // Extract student ID (it's an Integer from JSON, convert to Long)
             Integer studentIdInt = (Integer) result.get("studentId");
             Long studentId = studentIdInt.longValue();
-            System.out.println("Student ID in Long: " + studentId);
-            // Mark attendance
-            System.out.println("Marking attendance for student: " + studentId);
-            Attendance attendance = attendanceService.markAttendance(studentId, captureSource, null);
-            System.out.println("Attendance created with ID: " + attendance.getId());
+
+            Attendance attendance = attendanceService.markAttendance(
+                    studentId,
+                    captureSource,
+                    null
+            );
+
             AttendanceResponse attendanceResponse = new AttendanceResponse(attendance);
-            System.out.println("Created AttendanceResponse: " + attendanceResponse);
-            System.out.println("=== END: markAttendanceByFace SUCCESS ===");
+
+            System.out.println("=== END: SUCCESS ===");
+
             return ResponseEntity.status(HttpStatus.CREATED).body(attendanceResponse);
 
         } catch (RestClientException e) {
-            System.err.println("ERROR: Failed to call Python service");
             throw new RuntimeException("Face recognition service error: " + e.getMessage());
         }
     }
