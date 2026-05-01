@@ -2,9 +2,11 @@ package com.attendance.face.service;
 
 import com.attendance.face.dto.LoginRequest;
 import com.attendance.face.dto.StudentCreateRequest;
+import com.attendance.face.dto.response.FaceEncodingResponse;
 import com.attendance.face.dto.response.LoginResponse;
 import com.attendance.face.entity.*;
 import com.attendance.face.exception.DuplicateStudentException;
+import com.attendance.face.exception.FaceRegistrationException;
 import com.attendance.face.exception.InvalidCredentialsException;
 import com.attendance.face.exception.DuplicateStudentException;
 import com.attendance.face.repository.AdminRepository;
@@ -25,6 +27,8 @@ public class AuthService {
     private final AdminRepository adminRepository;
     private final BCryptPasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final FaceRecognitionClient faceRecognitionClient;
+    private final StudentService studentService;
 
     @Autowired
     public AuthService(
@@ -32,13 +36,17 @@ public class AuthService {
             StudentRepository studentRepository,
             LecturerRepository lecturerRepository,
             AdminRepository adminRepository,
-            JwtService jwtService) {
+            JwtService jwtService,
+            FaceRecognitionClient faceRecognitionClient,
+            StudentService studentService) {
         this.userRepository = userRepository;
         this.studentRepository = studentRepository;
         this.lecturerRepository = lecturerRepository;
         this.adminRepository = adminRepository;
         this.passwordEncoder = new BCryptPasswordEncoder();
         this.jwtService = jwtService;
+        this.faceRecognitionClient = faceRecognitionClient;
+        this.studentService = studentService;
     }
 
     /**
@@ -74,6 +82,27 @@ public class AuthService {
 
         Student savedStudent = studentRepository.save(student);
 
+        if (request.getPhoto() != null && !request.getPhoto().isEmpty()) {
+            try {
+                FaceEncodingResponse faceResponse = faceRecognitionClient.createEncoding(
+                        savedStudent.getId(),
+                        request.getPhoto()
+                );
+
+                if (faceResponse.isSuccess()) {
+                    savedStudent = studentService.updateFaceEncoding(
+                            savedStudent.getId(),
+                            faceResponse.getEncodingPath()
+                    );
+                } else {
+                    throw new FaceRegistrationException(faceResponse.getMessage());
+                }
+            } catch (FaceRegistrationException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new FaceRegistrationException("Face registration failed: " + e.getMessage());
+            }
+        }
         // Generate JWT token
         String token = jwtService.generateToken(savedUser);
 
