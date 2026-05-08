@@ -50,6 +50,7 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 "/api/attendance/mark-by-face",
+                                "/api/attendance/my-attendance",
                                 "/api/attendance/student/**"
                         ).hasRole("STUDENT")
 

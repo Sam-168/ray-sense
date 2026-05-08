@@ -3,8 +3,13 @@ package com.attendance.face.controller;
 import com.attendance.face.dto.AttendanceMarkRequest;
 import com.attendance.face.dto.AttendanceResponse;
 import com.attendance.face.entity.Attendance;
+import com.attendance.face.entity.AttendanceStatus;
 import com.attendance.face.entity.Student;
+import com.attendance.face.exception.StudentNotFoundException;
+import com.attendance.face.repository.AttendanceRepository;
+import com.attendance.face.repository.StudentRepository;
 import com.attendance.face.service.AttendanceService;
+import com.attendance.face.service.JwtService;
 import com.attendance.face.service.StudentService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,9 +37,15 @@ public class AttendanceController {
     private final StudentService studentService;
     private final RestTemplate restTemplate;
     private final String pythonServiceUrl;
+    private final JwtService jwtService;
+    private final StudentRepository studentRepository;
+    private final AttendanceRepository attendanceRepository;
 
     @Autowired
     public AttendanceController(AttendanceService attendanceService,
+                                JwtService jwtService,
+                                StudentRepository studentRepository,
+                                AttendanceRepository attendanceRepository,
                                 StudentService studentService,
                                 RestTemplate restTemplate,
                                 @Value("${face.recognition.service.url}")
@@ -44,6 +55,9 @@ public class AttendanceController {
         this.studentService = studentService;
         this.restTemplate = restTemplate;
         this.pythonServiceUrl = pythonServiceUrl;
+        this.studentRepository = studentRepository;
+        this.attendanceRepository = attendanceRepository;
+        this.jwtService = jwtService;
     }
 
 //    @PostMapping("/mark")
@@ -57,6 +71,44 @@ public class AttendanceController {
 //        return ResponseEntity.status(HttpStatus.CREATED).body(response);
 //    }
 
+    @GetMapping("/my-attendance")
+    public ResponseEntity<Map<String, Object>> getMyAttendance(
+            @RequestHeader("Authorization") String authHeader) {
+
+        // Extract token and get student
+        String token = authHeader.substring(7);
+        Long userId = jwtService.extractUserId(token);
+
+        // Find student by userId
+        Student student = studentRepository.findByUserId(userId)
+                .orElseThrow(() -> new StudentNotFoundException("Student not found"));
+
+        // Get all attendance records
+        List<Attendance> records = attendanceRepository.findByStudent(student);
+
+        // Calculate stats
+        long totalPresent = records.stream()
+                .filter(a -> a.getStatus() == AttendanceStatus.PRESENT)
+                .count();
+
+        // Build response
+        List<AttendanceResponse> attendanceList = records.stream()
+                .map(AttendanceResponse::new)
+                .sorted((a, b) -> b.getDate().compareTo(a.getDate())) // newest first
+                .collect(Collectors.toList());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("studentName", student.getFullName());
+        response.put("studentNumber", student.getStudentNumber());
+        response.put("classId", student.getClassId());
+        response.put("totalPresent", totalPresent);
+        response.put("totalRecords", records.size());
+        response.put("attendancePercentage",
+                records.isEmpty() ? 0 : Math.round((totalPresent * 100.0) / records.size()));
+        response.put("records", attendanceList);
+
+        return ResponseEntity.ok(response);
+    }
     @GetMapping("/today")
     public ResponseEntity<List<AttendanceResponse>> getTodayAttendance(){
         List<Attendance> attendances = attendanceService.getTodayAttendance();
