@@ -47,10 +47,7 @@ public class LecturerController {
                 .orElseThrow(() -> new RuntimeException("Lecturer not found"));
     }
 
-    /**
-     * GET /api/lecturer/sections
-     * Get all sections assigned to the logged-in lecturer
-     */
+
     @GetMapping("/sections")
     public ResponseEntity<List<Map<String, Object>>> getMySections(
             @RequestHeader("Authorization") String authHeader) {
@@ -85,10 +82,7 @@ public class LecturerController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * GET /api/lecturer/sections/{sectionId}/attendance/today
-     * Today's attendance for a specific section
-     */
+
     @GetMapping("/sections/{sectionId}/attendance/today")
     public ResponseEntity<Map<String, Object>> getTodayAttendance(
             @PathVariable Long sectionId,
@@ -100,10 +94,7 @@ public class LecturerController {
         return ResponseEntity.ok(buildAttendanceResponse(section, LocalDate.now()));
     }
 
-    /**
-     * GET /api/lecturer/sections/{sectionId}/attendance?startDate=&endDate=
-     * Attendance for a date range
-     */
+
     @GetMapping("/sections/{sectionId}/attendance")
     public ResponseEntity<Map<String, Object>> getAttendanceByRange(
             @PathVariable Long sectionId,
@@ -159,10 +150,7 @@ public class LecturerController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * GET /api/lecturer/sections/{sectionId}/students
-     * All students in a section with their attendance stats
-     */
+
     @GetMapping("/sections/{sectionId}/students")
     public ResponseEntity<List<Map<String, Object>>> getSectionStudents(
             @PathVariable Long sectionId,
@@ -188,8 +176,7 @@ public class LecturerController {
 
         return ResponseEntity.ok(students);
     }
-
-    // ── Private Helpers ──────────────────────────────────────────────────────
+    
 
     private ModuleSection getSectionAndVerifyOwnership(Long sectionId, Lecturer lecturer) {
         ModuleSection section = sectionRepository.findById(sectionId)

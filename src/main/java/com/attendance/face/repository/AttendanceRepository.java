@@ -46,7 +46,7 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
 
     @Query("SELECT COUNT(a) FROM Attendance a WHERE a.section = :section AND a.date = :date AND a.status = 'PRESENT'")
     long countBySectionAndDate(@Param("section") ModuleSection section, @Param("date") LocalDate date);
-    
+
     List<Attendance> findBySectionAndDate(ModuleSection section, LocalDate date);
 
     List<Attendance> findBySectionAndDateBetween(ModuleSection section, LocalDate startDate, LocalDate endDate);
