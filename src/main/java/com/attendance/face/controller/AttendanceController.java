@@ -3,10 +3,13 @@ package com.attendance.face.controller;
 import com.attendance.face.dto.AttendanceMarkRequest;
 import com.attendance.face.dto.AttendanceResponse;
 import com.attendance.face.entity.Attendance;
+import com.attendance.face.entity.AttendanceSession;
 import com.attendance.face.entity.AttendanceStatus;
 import com.attendance.face.entity.Student;
+import com.attendance.face.exception.DuplicateAttendanceException;
 import com.attendance.face.exception.StudentNotFoundException;
 import com.attendance.face.repository.AttendanceRepository;
+import com.attendance.face.repository.AttendanceSessionRepository;
 import com.attendance.face.repository.StudentRepository;
 import com.attendance.face.service.AttendanceService;
 import com.attendance.face.service.JwtService;
@@ -24,10 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDate;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -40,9 +40,12 @@ public class AttendanceController {
     private final JwtService jwtService;
     private final StudentRepository studentRepository;
     private final AttendanceRepository attendanceRepository;
+    private final AttendanceSessionRepository sessionRepository;
+
 
     @Autowired
     public AttendanceController(AttendanceService attendanceService,
+                                AttendanceSessionRepository sessionRepository,
                                 JwtService jwtService,
                                 StudentRepository studentRepository,
                                 AttendanceRepository attendanceRepository,
@@ -58,6 +61,7 @@ public class AttendanceController {
         this.studentRepository = studentRepository;
         this.attendanceRepository = attendanceRepository;
         this.jwtService = jwtService;
+        this.sessionRepository = sessionRepository;
     }
 
 //    @PostMapping("/mark")
@@ -171,38 +175,50 @@ public class AttendanceController {
     }
     /**
      * Mark attendance using face recognition
-     * POST /api/attendance/mark-by-face
+     * POST /sessions/{sessionId}/mark-by-face
      */
-    @PostMapping("/mark-by-face")
-    public ResponseEntity<AttendanceResponse> markAttendanceByFace(
-            @RequestBody String photo,
-            @RequestParam(required = false, defaultValue = "student-checkin") String captureSource
-    ) {
+    @PostMapping("/sessions/{sessionId}/mark-by-face")
+    public ResponseEntity<Map<String, Object>> markAttendanceByFace(
+            @PathVariable Long sessionId,
+            @RequestParam("photo") MultipartFile photo,
+            @RequestHeader("Authorization") String authHeader) throws IOException {
 
-        System.out.println("=== START: markAttendanceByFace ===");
-
-        if (photo == null || photo.isBlank()) {
+        if (photo == null || photo.isEmpty()) {
             throw new IllegalArgumentException("Photo is required");
         }
 
-        System.out.println("Base64 photo received, length: " + photo.length());
+        // Get student from token
+        String token = authHeader.substring(7);
+        Long userId = jwtService.extractUserId(token);
+        Student student = studentRepository.findByUserId(userId)
+                .orElseThrow(() -> new StudentNotFoundException("Student not found"));
 
-        // The frontend already sends base64 → no need to re-encode
-        String imageBase64 = photo;
+        // Validate session is still active
+        AttendanceSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new RuntimeException("Session not found"));
 
-        // Get all active students with encodings
-        List<Student> activeStudents = studentService.getActiveStudents().stream()
+        if (!session.isActive()) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "This session has ended");
+            return ResponseEntity.badRequest().body(error);
+        }
+
+        // Convert photo to base64
+        String imageBase64 = Base64.getEncoder().encodeToString(photo.getBytes());
+
+        // Get active students with face encodings in this section
+        List<Student> sectionStudents = new ArrayList<>(session.getSection().getStudents())
+                .stream()
                 .filter(s -> s.getFaceEncodingPath() != null)
                 .collect(Collectors.toList());
 
-        System.out.println("Found " + activeStudents.size() + " active students with encodings");
-
-        // Prepare known encodings list for Python
-        List<Map<String, Object>> knownEncodings = activeStudents.stream()
-                .map(student -> {
+        // Build known encodings for Python
+        List<Map<String, Object>> knownEncodings = sectionStudents.stream()
+                .map(s -> {
                     Map<String, Object> map = new HashMap<>();
-                    map.put("studentId", student.getId());
-                    map.put("encodingPath", student.getFaceEncodingPath());
+                    map.put("studentId", s.getId());
+                    map.put("encodingPath", s.getFaceEncodingPath());
                     return map;
                 })
                 .collect(Collectors.toList());
@@ -210,50 +226,105 @@ public class AttendanceController {
         // Call Python service
         String url = pythonServiceUrl + "/recognize-face";
 
-        Map<String, Object> request = new HashMap<>();
-        request.put("imageBase64", imageBase64);
-        request.put("knownEncodings", knownEncodings);
-
-        System.out.println("Calling Python service at: " + url);
+        Map<String, Object> pythonRequest = new HashMap<>();
+        pythonRequest.put("imageBase64", imageBase64);
+        pythonRequest.put("knownEncodings", knownEncodings);
 
         try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, request, Map.class);
+            ResponseEntity<Map> pythonResponse = restTemplate.postForEntity(
+                    url, pythonRequest, Map.class);
 
-            Map<String, Object> result = response.getBody();
+            Map<String, Object> result = pythonResponse.getBody();
 
-            if (result == null) {
-                throw new RuntimeException("Empty response from face recognition service");
-            }
+            if (result == null) throw new RuntimeException("Empty response from face recognition");
 
             Boolean faceDetected = (Boolean) result.get("faceDetected");
-            Boolean matched = (Boolean) result.get("matched");
+            Boolean matched      = (Boolean) result.get("matched");
 
-            if (!Boolean.TRUE.equals(faceDetected)) {
-                throw new RuntimeException("No face detected in photo");
+            if (!faceDetected) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "No face detected. Please try again.");
+                return ResponseEntity.ok(response);
             }
 
-            if (!Boolean.TRUE.equals(matched)) {
-                throw new RuntimeException("Face not recognized");
+            if (!matched) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "Face not recognized. Please try again.");
+                return ResponseEntity.ok(response);
             }
 
-            Integer studentIdInt = (Integer) result.get("studentId");
-            Long studentId = studentIdInt.longValue();
+            // Get matched student ID
+            Integer matchedIdInt = (Integer) result.get("studentId");
+            Long matchedStudentId = matchedIdInt.longValue();
 
-            Attendance attendance = attendanceService.markAttendance(
-                    studentId,
-                    captureSource,
-                    null
-            );
+            // Verify matched student is the logged-in student
+            if (!matchedStudentId.equals(student.getId())) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "Face does not match your registered profile.");
+                return ResponseEntity.ok(response);
+            }
 
-            AttendanceResponse attendanceResponse = new AttendanceResponse(attendance);
+            // Mark attendance for this session
+            Attendance attendance = attendanceService.markAttendanceForSession(
+                    student.getId(), sessionId, "student-face-scan");
 
-            System.out.println("=== END: SUCCESS ===");
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Attendance marked successfully!");
+            response.put("studentName", student.getFullName());
+            response.put("sessionCode", session.getSessionCode());
+            response.put("moduleName", session.getSection().getModule().getModuleName());
+            response.put("time", attendance.getTime());
 
-            return ResponseEntity.status(HttpStatus.CREATED).body(attendanceResponse);
+            return ResponseEntity.ok(response);
 
-        } catch (RestClientException e) {
-            throw new RuntimeException("Face recognition service error: " + e.getMessage());
+        } catch (DuplicateAttendanceException e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "You have already marked attendance for this session.");
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "Error: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
         }
+    }
+    @GetMapping("/active-sessions")
+    public ResponseEntity<List<Map<String, Object>>> getActiveSessions(
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = authHeader.substring(7);
+        Long userId = jwtService.extractUserId(token);
+
+        Student student = studentRepository.findByUserId(userId)
+                .orElseThrow(() -> new StudentNotFoundException("Student not found"));
+
+        List<AttendanceSession> activeSessions = sessionRepository
+                .findActiveSessionsForStudent(student);
+
+        List<Map<String, Object>> response = activeSessions.stream().map(session -> {
+            // Check if student already marked attendance
+            boolean alreadyMarked = attendanceRepository
+                    .existsByStudentAndSession(student, session);
+
+            Map<String, Object> map = new HashMap<>();
+            map.put("sessionId", session.getId());
+            map.put("sessionCode", session.getSessionCode());
+            map.put("sectionName", session.getSection().getFullSectionName());
+            map.put("moduleName", session.getSection().getModule().getModuleName());
+            map.put("lecturerName", session.getCreatedBy().getFullName());
+            map.put("startedAt", session.getStartedAt());
+            map.put("autoCloseMinutes", session.getAutoCloseMinutes());
+            map.put("alreadyMarked", alreadyMarked);
+            return map;
+        }).collect(Collectors.toList());
+
+        return ResponseEntity.ok(response);
     }
  }
 

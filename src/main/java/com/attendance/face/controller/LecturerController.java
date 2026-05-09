@@ -287,7 +287,7 @@ public class LecturerController {
 
         return ResponseEntity.ok(response);
     }
-    
+
     @GetMapping("/sessions/{sessionId}/live")
     public ResponseEntity<Map<String, Object>> getLiveStats(
             @PathVariable Long sessionId,
