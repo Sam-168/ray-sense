@@ -176,7 +176,7 @@ public class LecturerController {
 
         return ResponseEntity.ok(students);
     }
-    
+
 
     private ModuleSection getSectionAndVerifyOwnership(Long sectionId, Lecturer lecturer) {
         ModuleSection section = sectionRepository.findById(sectionId)
