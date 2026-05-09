@@ -2,6 +2,7 @@ package com.attendance.face.repository;
 
 import com.attendance.face.entity.Attendance;
 import com.attendance.face.entity.AttendanceStatus;
+import com.attendance.face.entity.ModuleSection;
 import com.attendance.face.entity.Student;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -42,5 +43,15 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate
     );
+
+    @Query("SELECT COUNT(a) FROM Attendance a WHERE a.section = :section AND a.date = :date AND a.status = 'PRESENT'")
+    long countBySectionAndDate(@Param("section") ModuleSection section, @Param("date") LocalDate date);
+    
+    List<Attendance> findBySectionAndDate(ModuleSection section, LocalDate date);
+
+    List<Attendance> findBySectionAndDateBetween(ModuleSection section, LocalDate startDate, LocalDate endDate);
+
+    @Query("SELECT COUNT(a) FROM Attendance a WHERE a.student = :student AND a.section = :section AND a.status = 'PRESENT'")
+    long countByStudentAndSection(@Param("student") Student student, @Param("section") ModuleSection section);
 
 }
