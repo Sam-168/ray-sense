@@ -41,23 +41,20 @@ public class AttendanceSession {
     @Column(name = "ended_at")
     private LocalDateTime endedAt;
 
-    // Auto-close after this many minutes (default 60)
+    // Auto-close after this many minutes (60 min)
     @Column(nullable = false, name = "auto_close_minutes")
     private Integer autoCloseMinutes = 60;
 
     @Column(length = 255)
     private String notes;
 
-    // ── Helpers ─────────────────────────────────────────────────────────────
+
 
     public boolean isActive() {
         return this.status == SessionStatus.ACTIVE;
     }
 
-    /**
-     * Check if session should be auto-closed
-     * Called during polling to enforce the backup close
-     */
+
     public boolean shouldAutoClose() {
         if (this.status == SessionStatus.CLOSED) return false;
         LocalDateTime autoCloseTime = this.startedAt.plusMinutes(this.autoCloseMinutes);
