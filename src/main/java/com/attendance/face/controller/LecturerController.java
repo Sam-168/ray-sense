@@ -1,7 +1,6 @@
 package com.attendance.face.controller;
 
-import com.attendance.face.entity.Lecturer;
-import com.attendance.face.entity.ModuleSection;
+import com.attendance.face.entity.*;
 import com.attendance.face.repository.*;
 import com.attendance.face.service.JwtService;
 import org.springframework.web.bind.annotation.RequestMapping;
