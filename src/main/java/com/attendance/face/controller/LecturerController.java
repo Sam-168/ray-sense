@@ -2,7 +2,9 @@ package com.attendance.face.controller;
 
 import com.attendance.face.entity.*;
 import com.attendance.face.repository.*;
+import com.attendance.face.service.AttendanceSessionService;
 import com.attendance.face.service.JwtService;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,8 +22,10 @@ public class LecturerController {
     private final LecturerRepository lecturerRepository;
     private final ModuleSectionRepository sectionRepository;
     private final AttendanceRepository attendanceRepository;
+    private final AttendanceSessionRepository sessionRepository;
     private final StudentRepository studentRepository;
     private final UserRepository userRepository;
+    private final AttendanceSessionService sessionService;
 
     @Autowired
     public LecturerController(
@@ -30,13 +34,17 @@ public class LecturerController {
             ModuleSectionRepository sectionRepository,
             AttendanceRepository attendanceRepository,
             StudentRepository studentRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            AttendanceSessionRepository sessionRepository,
+            AttendanceSessionService sessionService) {
         this.jwtService = jwtService;
         this.lecturerRepository = lecturerRepository;
         this.sectionRepository = sectionRepository;
         this.attendanceRepository = attendanceRepository;
         this.studentRepository = studentRepository;
         this.userRepository = userRepository;
+        this.sessionService = sessionService;
+        this.sessionRepository = sessionRepository;
     }
 
     // ── Helper: extract lecturer from token ──────────────────────────────────
@@ -64,6 +72,8 @@ public class LecturerController {
             // Count today's attendance
             long todayPresent = attendanceRepository
                     .countBySectionAndDate(section, LocalDate.now());
+            Optional<AttendanceSession> activeSession = sessionRepository
+                    .findBySectionAndStatus(section, SessionStatus.ACTIVE);
 
             Map<String, Object> map = new HashMap<>();
             map.put("sectionId", section.getId());
@@ -76,6 +86,8 @@ public class LecturerController {
             map.put("studentCount", studentCount);
             map.put("todayPresent", todayPresent);
             map.put("department", section.getModule().getDepartment());
+            map.put("activeSessionId", activeSession.map(AttendanceSession::getId).orElse(null));
+            map.put("hasActiveSession", activeSession.isPresent());
             return map;
         }).collect(Collectors.toList());
 
@@ -236,5 +248,111 @@ public class LecturerController {
         response.put("students", studentStatuses);
 
         return response;
+    }
+    @PostMapping("/sections/{sectionId}/sessions/start")
+    public ResponseEntity<Map<String, Object>> startSession(
+            @PathVariable Long sectionId,
+            @RequestBody(required = false) Map<String, Object> body,
+            @RequestHeader("Authorization") String authHeader) {
+
+        Lecturer lecturer = getLecturerFromToken(authHeader);
+        ModuleSection section = getSectionAndVerifyOwnership(sectionId, lecturer);
+
+        // Optional params from body
+        Integer autoCloseMinutes = body != null ?
+                (Integer) body.getOrDefault("autoCloseMinutes", 60) : 60;
+        String notes = body != null ? (String) body.get("notes") : null;
+
+        AttendanceSession session = sessionService.startSession(
+                section, lecturer, autoCloseMinutes, notes);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("sessionId", session.getId());
+        response.put("sessionCode", session.getSessionCode());
+        response.put("status", session.getStatus());
+        response.put("startedAt", session.getStartedAt());
+        response.put("autoCloseMinutes", session.getAutoCloseMinutes());
+        response.put("sectionName", section.getFullSectionName());
+        response.put("moduleName", section.getModule().getModuleName());
+        response.put("totalStudents", section.getStudents().size());
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+    @PutMapping("/sessions/{sessionId}/end")
+    public ResponseEntity<Map<String, Object>> endSession(
+            @PathVariable Long sessionId,
+            @RequestHeader("Authorization") String authHeader) {
+
+        Lecturer lecturer = getLecturerFromToken(authHeader);
+        AttendanceSession session = sessionService.endSession(sessionId, lecturer);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("sessionId", session.getId());
+        response.put("status", session.getStatus());
+        response.put("endedAt", session.getEndedAt());
+        response.put("message", "Session ended successfully");
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/sessions/{sessionId}/live")
+    public ResponseEntity<Map<String, Object>> getLiveStats(
+            @PathVariable Long sessionId,
+            @RequestHeader("Authorization") String authHeader) {
+
+        Lecturer lecturer = getLecturerFromToken(authHeader);
+        AttendanceSession session = sessionService.getSession(sessionId);
+
+        // Verify ownership
+        if (!session.getCreatedBy().getId().equals(lecturer.getId())) {
+            return ResponseEntity.status(403).build();
+        }
+
+        // Get all attendance records for this session
+        List<Attendance> records = attendanceRepository.findBySession(session);
+
+        long presentCount = records.stream()
+                .filter(a -> a.getStatus() == AttendanceStatus.PRESENT)
+                .count();
+
+        int totalStudents = session.getSection().getStudents().size();
+
+        // Per student status
+        Map<Long, Attendance> attendanceMap = records.stream()
+                .collect(Collectors.toMap(
+                        a -> a.getStudent().getId(),
+                        a -> a
+                ));
+
+        List<Map<String, Object>> studentStatuses = session.getSection().getStudents()
+                .stream()
+                .map(student -> {
+                    Attendance record = attendanceMap.get(student.getId());
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("studentId", student.getId());
+                    map.put("fullName", student.getFullName());
+                    map.put("studentNumber", student.getStudentNumber());
+                    map.put("status", record != null ? record.getStatus() : "ABSENT");
+                    map.put("time", record != null ? record.getTime() : null);
+                    return map;
+                })
+                .sorted(Comparator.comparing(m -> (String) m.get("fullName")))
+                .collect(Collectors.toList());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("sessionId", session.getId());
+        response.put("sessionCode", session.getSessionCode());
+        response.put("status", session.getStatus());
+        response.put("sectionName", session.getSection().getFullSectionName());
+        response.put("moduleName", session.getSection().getModule().getModuleName());
+        response.put("startedAt", session.getStartedAt());
+        response.put("autoCloseMinutes", session.getAutoCloseMinutes());
+        response.put("presentCount", presentCount);
+        response.put("totalStudents", totalStudents);
+        response.put("attendancePercentage",
+                totalStudents == 0 ? 0 : Math.round(presentCount * 100.0 / totalStudents));
+        response.put("students", studentStatuses);
+
+        return ResponseEntity.ok(response);
     }
 }

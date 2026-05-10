@@ -39,8 +39,9 @@ public class Attendance {
     @Column(nullable = false, length = 20)
     private AttendanceStatus status;
 
-    @Column(length = 100)
-    private String sessionId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "session_id", nullable = false)
+    private AttendanceSession session;
 
     @Column(length = 100)
     private String captureSource;
