@@ -22,6 +22,7 @@ public class LecturerController {
     private final LecturerRepository lecturerRepository;
     private final ModuleSectionRepository sectionRepository;
     private final AttendanceRepository attendanceRepository;
+    private final AttendanceSessionRepository sessionRepository;
     private final StudentRepository studentRepository;
     private final UserRepository userRepository;
     private final AttendanceSessionService sessionService;
@@ -34,6 +35,7 @@ public class LecturerController {
             AttendanceRepository attendanceRepository,
             StudentRepository studentRepository,
             UserRepository userRepository,
+            AttendanceSessionRepository sessionRepository,
             AttendanceSessionService sessionService) {
         this.jwtService = jwtService;
         this.lecturerRepository = lecturerRepository;
@@ -42,6 +44,7 @@ public class LecturerController {
         this.studentRepository = studentRepository;
         this.userRepository = userRepository;
         this.sessionService = sessionService;
+        this.sessionRepository = sessionRepository;
     }
 
     // ── Helper: extract lecturer from token ──────────────────────────────────
@@ -69,6 +72,8 @@ public class LecturerController {
             // Count today's attendance
             long todayPresent = attendanceRepository
                     .countBySectionAndDate(section, LocalDate.now());
+            Optional<AttendanceSession> activeSession = sessionRepository
+                    .findBySectionAndStatus(section, SessionStatus.ACTIVE);
 
             Map<String, Object> map = new HashMap<>();
             map.put("sectionId", section.getId());
@@ -81,6 +86,8 @@ public class LecturerController {
             map.put("studentCount", studentCount);
             map.put("todayPresent", todayPresent);
             map.put("department", section.getModule().getDepartment());
+            map.put("activeSessionId", activeSession.map(AttendanceSession::getId).orElse(null));
+            map.put("hasActiveSession", activeSession.isPresent());
             return map;
         }).collect(Collectors.toList());
 
