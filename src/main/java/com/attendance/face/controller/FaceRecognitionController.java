@@ -70,71 +70,71 @@ public class FaceRecognitionController {
     }
 
 
-    @PostMapping("/recognize")
-    public ResponseEntity<Map<String, Object>> recognizeAndMarkAttendance(
-            @RequestParam(required = false, defaultValue = "webcam") String captureSource,
-            @RequestParam(required = false) String sessionId) {
-
-
-        if (sessionId == null || sessionId.isEmpty()) {
-            sessionId = "auto-" + System.currentTimeMillis();
-        }
-
-
-        List<Student> activeStudents = studentService.getActiveStudents();
-
-        // Call Python service for recognition
-        RecognitionResponse response = faceRecognitionClient.recognizeFaces(
-                activeStudents,
-                captureSource,
-                sessionId
-        );
-
-        // Mark attendance for recognized students
-        List<Map<String, Object>> attendanceResults = new ArrayList<>();
-
-        for (RecognitionResponse.RecognizedStudent recognized : response.getRecognizedStudents()) {
-            try {
-                Attendance attendance = attendanceService.markAttendance(
-                        recognized.getStudentId(),
-                        captureSource,
-                        sessionId
-                );
-
-                Map<String, Object> result = new HashMap<>();
-                result.put("studentId", recognized.getStudentId());
-                result.put("studentNumber", recognized.getStudentNumber());
-                result.put("confidence", recognized.getConfidence());
-                result.put("attendanceMarked", true);
-                result.put("attendanceId", attendance.getId());
-
-                attendanceResults.add(result);
-
-            } catch (Exception e) {
-                // Student might have already been marked (duplicate)
-                Map<String, Object> result = new HashMap<>();
-                result.put("studentId", recognized.getStudentId());
-                result.put("studentNumber", recognized.getStudentNumber());
-                result.put("confidence", recognized.getConfidence());
-                result.put("attendanceMarked", false);
-                result.put("error", e.getMessage());
-
-                attendanceResults.add(result);
-            }
-        }
-
-        // Build response
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", response.isSuccess());
-        result.put("timestamp", response.getTimestamp());
-        result.put("totalFacesDetected", response.getTotalFacesDetected());
-        result.put("recognizedCount", response.getRecognizedStudents().size());
-        result.put("unknownFaces", response.getUnknownFaces());
-        result.put("attendanceResults", attendanceResults);
-        result.put("processingTimeMs", response.getProcessingTimeMs());
-
-        return ResponseEntity.ok(result);
-    }
+//    @PostMapping("/recognize")
+//    public ResponseEntity<Map<String, Object>> recognizeAndMarkAttendance(
+//            @RequestParam(required = false, defaultValue = "webcam") String captureSource,
+//            @RequestParam(required = false) String sessionId) {
+//
+//
+//        if (sessionId == null || sessionId.isEmpty()) {
+//            sessionId = "auto-" + System.currentTimeMillis();
+//        }
+//
+//
+//        List<Student> activeStudents = studentService.getActiveStudents();
+//
+//        // Call Python service for recognition
+//        RecognitionResponse response = faceRecognitionClient.recognizeFaces(
+//                activeStudents,
+//                captureSource,
+//                sessionId
+//        );
+//
+//        // Mark attendance for recognized students
+//        List<Map<String, Object>> attendanceResults = new ArrayList<>();
+//
+//        for (RecognitionResponse.RecognizedStudent recognized : response.getRecognizedStudents()) {
+//            try {
+//                Attendance attendance = attendanceService.markAttendance(
+//                        recognized.getStudentId(),
+//                        captureSource,
+//                        sessionId
+//                );
+//
+//                Map<String, Object> result = new HashMap<>();
+//                result.put("studentId", recognized.getStudentId());
+//                result.put("studentNumber", recognized.getStudentNumber());
+//                result.put("confidence", recognized.getConfidence());
+//                result.put("attendanceMarked", true);
+//                result.put("attendanceId", attendance.getId());
+//
+//                attendanceResults.add(result);
+//
+//            } catch (Exception e) {
+//                // Student might have already been marked (duplicate)
+//                Map<String, Object> result = new HashMap<>();
+//                result.put("studentId", recognized.getStudentId());
+//                result.put("studentNumber", recognized.getStudentNumber());
+//                result.put("confidence", recognized.getConfidence());
+//                result.put("attendanceMarked", false);
+//                result.put("error", e.getMessage());
+//
+//                attendanceResults.add(result);
+//            }
+//        }
+//
+//        // Build response
+//        Map<String, Object> result = new HashMap<>();
+//        result.put("success", response.isSuccess());
+//        result.put("timestamp", response.getTimestamp());
+//        result.put("totalFacesDetected", response.getTotalFacesDetected());
+//        result.put("recognizedCount", response.getRecognizedStudents().size());
+//        result.put("unknownFaces", response.getUnknownFaces());
+//        result.put("attendanceResults", attendanceResults);
+//        result.put("processingTimeMs", response.getProcessingTimeMs());
+//
+//        return ResponseEntity.ok(result);
+//    }
 
 
     @GetMapping("/health")

@@ -49,14 +49,18 @@ public class SecurityConfig {
 
 
                         .requestMatchers(
-                                "/api/attendance/mark-by-face",
+                                "/api/attendance/sessions/*/mark-by-face",
+                                "/api/attendance/active-sessions",
                                 "/api/attendance/my-attendance",
                                 "/api/attendance/student/**"
                         ).hasRole("STUDENT")
 
                         // ===== LECTURER ONLY ROUTES =====
                         .requestMatchers(
-                                "/api/lecturer/**"
+                                "/api/lecturer/**",
+                                "/api/lecturer/sections/*/sessions/start",
+                                "/api/lecturer/sessions/*/end",
+                                "/api/lecturer/sessions/*/live"
                         ).hasRole("LECTURER")
 
 

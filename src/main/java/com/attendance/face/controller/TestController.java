@@ -41,19 +41,19 @@ public class TestController {
 
     }
 
-    @PostMapping("/mark-attendance/{studentId}")
-    public Map<String, Object> markAttendance(@PathVariable Long studentId){
-        Attendance attendance = attendanceService.markAttendance(
-                studentId,
-                "test-camera",
-                "test-session-" + System.currentTimeMillis()
-        );
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("message", "attendance marked via service");
-        response.put("attendance", attendance);
-        return response;
-    }
+//    @PostMapping("/mark-attendance/{studentId}")
+//    public Map<String, Object> markAttendance(@PathVariable Long studentId){
+//        Attendance attendance = attendanceService.markAttendance(
+//                studentId,
+//                "test-camera",
+//                "test-session-" + System.currentTimeMillis()
+//        );
+//
+//        Map<String, Object> response = new HashMap<>();
+//        response.put("message", "attendance marked via service");
+//        response.put("attendance", attendance);
+//        return response;
+//    }
     @GetMapping("/students")
     public List<Student> getAllStudents(){
 
