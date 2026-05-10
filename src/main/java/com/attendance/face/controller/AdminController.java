@@ -1,5 +1,9 @@
 package com.attendance.face.controller;
 
+import com.attendance.face.dto.LecturerDto;
+import com.attendance.face.dto.ModuleDto;
+import com.attendance.face.dto.response.AdminStudentDto;
+import com.attendance.face.dto.response.SectionDto;
 import com.attendance.face.entity.*;
 import com.attendance.face.entity.Module;
 import com.attendance.face.repository.*;
@@ -8,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -16,6 +21,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin")
+@Transactional
 public class AdminController {
 
     private final ModuleRepository moduleRepository;
@@ -69,36 +75,25 @@ public class AdminController {
      * GET /api/admin/modules
      */
     @GetMapping("/modules")
-    public ResponseEntity<List<Map<String, Object>>> getAllModules() {
-        List<Map<String, Object>> modules = moduleRepository.findAll()
-                .stream().map(module -> {
-                    Map<String, Object> map = new HashMap<>();
-                    map.put("id", module.getId());
-                    map.put("moduleCode", module.getModuleCode());
-                    map.put("moduleName", module.getModuleName());
-                    map.put("department", module.getDepartment());
-                    map.put("isActive", module.getIsActive());
-                    map.put("sectionCount", module.getSections().size());
-                    return map;
-                }).collect(Collectors.toList());
+    public ResponseEntity<List<ModuleDto>> getAllModules() {
+        List<ModuleDto> modules = moduleRepository.findAll()
+                .stream()
+                .map(ModuleDto::new)        // ← DTO conversion inside transaction
+                .collect(Collectors.toList());
         return ResponseEntity.ok(modules);
     }
-
     /**
      * POST /api/admin/modules
      * Body: { moduleCode, moduleName, department }
      */
     @PostMapping("/modules")
-    public ResponseEntity<Map<String, Object>> createModule(
-            @RequestBody Map<String, String> body) {
-
+    public ResponseEntity<ModuleDto> createModule(@RequestBody Map<String, String> body) {
         String moduleCode = body.get("moduleCode");
         String moduleName = body.get("moduleName");
         String department = body.get("department");
 
         if (moduleRepository.existsByModuleCode(moduleCode)) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("message", "Module code already exists"));
+            throw new RuntimeException("Module code already exists");
         }
 
         Module module = new Module();
@@ -108,15 +103,7 @@ public class AdminController {
         module.setIsActive(true);
 
         Module saved = moduleRepository.save(module);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("id", saved.getId());
-        response.put("moduleCode", saved.getModuleCode());
-        response.put("moduleName", saved.getModuleName());
-        response.put("department", saved.getDepartment());
-        response.put("message", "Module created successfully");
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(new ModuleDto(saved));
     }
 
     /**
@@ -135,23 +122,11 @@ public class AdminController {
      * GET /api/admin/sections
      */
     @GetMapping("/sections")
-    public ResponseEntity<List<Map<String, Object>>> getAllSections() {
-        List<Map<String, Object>> sections = sectionRepository.findAll()
-                .stream().map(section -> {
-                    Map<String, Object> map = new HashMap<>();
-                    map.put("id", section.getId());
-                    map.put("moduleCode", section.getModule().getModuleCode());
-                    map.put("moduleName", section.getModule().getModuleName());
-                    map.put("sectionCode", section.getSectionCode());
-                    map.put("fullSectionName", section.getFullSectionName());
-                    map.put("lecturerId", section.getLecturer().getId());
-                    map.put("lecturerName", section.getLecturer().getFullName());
-                    map.put("semester", section.getSemester());
-                    map.put("year", section.getYear());
-                    map.put("studentCount", section.getStudents().size());
-                    map.put("isActive", section.getIsActive());
-                    return map;
-                }).collect(Collectors.toList());
+    public ResponseEntity<List<SectionDto>> getAllSections() {
+        List<SectionDto> sections = sectionRepository.findAll()
+                .stream()
+                .map(SectionDto::new)       // ← DTO conversion inside transaction
+                .collect(Collectors.toList());
         return ResponseEntity.ok(sections);
     }
 
@@ -160,7 +135,7 @@ public class AdminController {
      * Body: { moduleId, lecturerId, sectionCode, semester, year }
      */
     @PostMapping("/sections")
-    public ResponseEntity<Map<String, Object>> createSection(
+    public ResponseEntity<SectionDto> createSection(
             @RequestBody Map<String, Object> body) {
 
         Long moduleId   = Long.valueOf(body.get("moduleId").toString());
@@ -184,14 +159,7 @@ public class AdminController {
         section.setIsActive(true);
 
         ModuleSection saved = sectionRepository.save(section);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("id", saved.getId());
-        response.put("fullSectionName", saved.getFullSectionName());
-        response.put("lecturerName", lecturer.getFullName());
-        response.put("message", "Section created successfully");
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(new SectionDto(saved));
     }
 
     /**
@@ -274,8 +242,7 @@ public class AdminController {
                 .anyMatch(s -> Objects.equals(s.getId(), studentId));
 
         if (alreadyEnrolled) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("message", "Student already enrolled in this section"));
+            throw new RuntimeException("Student already enrolled in this section");
         }
 
         // Enroll
@@ -312,23 +279,17 @@ public class AdminController {
      * GET /api/admin/lecturers
      */
     @GetMapping("/lecturers")
-    public ResponseEntity<List<Map<String, Object>>> getAllLecturers() {
-        List<Map<String, Object>> lecturers = lecturerRepository.findAll()
-                .stream().map(lecturer -> {
-                    // Get their user email
+    public ResponseEntity<List<LecturerDto>> getAllLecturers() {
+        List<LecturerDto> lecturers = lecturerRepository.findAll()
+                .stream()
+                .map(lecturer -> {
                     User user = userRepository.findById(lecturer.getUserId()).orElse(null);
-                    Map<String, Object> map = new HashMap<>();
-                    map.put("id", lecturer.getId());
-                    map.put("fullName", lecturer.getFullName());
-                    map.put("employeeNumber", lecturer.getEmployeeNumber());
-                    map.put("department", lecturer.getDepartment());
-                    map.put("email", user != null ? user.getEmail() : "");
-                    map.put("isActive", lecturer.getIsActive());
-                    map.put("sectionCount",
-                            sectionRepository.findByLecturerAndIsActive(lecturer, true).size()
-                    );
-                    return map;
-                }).collect(Collectors.toList());
+                    // Count sections safely
+                    int sectionCount = sectionRepository
+                            .findByLecturerAndIsActive(lecturer, true).size();
+                    return new LecturerDto(lecturer, user, sectionCount);
+                })
+                .collect(Collectors.toList());
         return ResponseEntity.ok(lecturers);
     }
 
@@ -337,9 +298,7 @@ public class AdminController {
      * Body: { email, password, fullName, employeeNumber, department, phoneNumber }
      */
     @PostMapping("/lecturers")
-    public ResponseEntity<Map<String, Object>> createLecturer(
-            @RequestBody Map<String, String> body) {
-
+    public ResponseEntity<LecturerDto> createLecturer(@RequestBody Map<String, String> body) {
         String email          = body.get("email");
         String password       = body.get("password");
         String fullName       = body.get("fullName");
@@ -347,13 +306,10 @@ public class AdminController {
         String department     = body.get("department");
         String phoneNumber    = body.get("phoneNumber");
 
-        // Check duplicates
         if (userRepository.existsByEmail(email)) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("message", "Email already exists"));
+            throw new RuntimeException("Email already exists");
         }
 
-        // Create user account
         User user = new User();
         user.setEmail(email);
         user.setPasswordHash(new BCryptPasswordEncoder().encode(password));
@@ -361,7 +317,6 @@ public class AdminController {
         user.setIsActive(true);
         User savedUser = userRepository.save(user);
 
-        // Create lecturer profile
         Lecturer lecturer = new Lecturer();
         lecturer.setUserId(savedUser.getId());
         lecturer.setFullName(fullName);
@@ -371,36 +326,26 @@ public class AdminController {
         lecturer.setIsActive(true);
         Lecturer savedLecturer = lecturerRepository.save(lecturer);
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("id", savedLecturer.getId());
-        response.put("fullName", savedLecturer.getFullName());
-        response.put("email", email);
-        response.put("message", "Lecturer account created successfully");
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new LecturerDto(savedLecturer, savedUser, 0));
     }
-    
+
     /**
      * GET /api/admin/students
      */
     @GetMapping("/students")
-    public ResponseEntity<List<Map<String, Object>>> getAllStudents() {
-        List<Map<String, Object>> students = studentRepository.findAll()
-                .stream().map(student -> {
-                    User user = student.getUserId() != null ?
-                            userRepository.findById(student.getUserId()).orElse(null) : null;
-                    Map<String, Object> map = new HashMap<>();
-                    map.put("id", student.getId());
-                    map.put("fullName", student.getFullName());
-                    map.put("studentNumber", student.getStudentNumber());
-                    map.put("email", user != null ? user.getEmail() : "");
-                    map.put("isActive", student.getIsActive());
-                    map.put("hasFaceEncoding", student.getFaceEncodingPath() != null);
-                    map.put("enrolledSections",
-                            studentSectionRepository.findByStudent(student).size()
-                    );
-                    return map;
-                }).collect(Collectors.toList());
+    public ResponseEntity<List<AdminStudentDto>> getAllStudents() {
+        List<AdminStudentDto> students = studentRepository.findAll()
+                .stream()
+                .map(student -> {
+                    User user = student.getUserId() != null
+                            ? userRepository.findById(student.getUserId()).orElse(null)
+                            : null;
+                    int enrolledSections = studentSectionRepository
+                            .findByStudent(student).size();
+                    return new AdminStudentDto(student, user, enrolledSections);
+                })
+                .collect(Collectors.toList());
         return ResponseEntity.ok(students);
     }
 }
