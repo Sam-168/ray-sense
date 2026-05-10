@@ -379,7 +379,7 @@ public class AdminController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
-    
+
     /**
      * GET /api/admin/students
      */
