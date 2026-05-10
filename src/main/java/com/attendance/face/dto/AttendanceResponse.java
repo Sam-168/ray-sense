@@ -20,7 +20,7 @@ public class AttendanceResponse {
     private LocalDate date;
     private LocalTime time;
     private AttendanceStatus status;
-    private String sessionId;
+    private Long sessionId;
     private String captureSource;
     private LocalDateTime createdAt;
 
@@ -33,7 +33,7 @@ public class AttendanceResponse {
         this.date = attendance.getDate();
         this.time = attendance.getTime();
         this.status = attendance.getStatus();
-        this.sessionId = attendance.getSessionId();
+        this.sessionId = attendance.getSession().getId();
         this.captureSource = attendance.getCaptureSource();
         this.createdAt = attendance.getCreatedAt();
     }
