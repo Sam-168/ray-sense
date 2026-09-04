@@ -197,6 +197,13 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(ex.getMessage(), request.getRequestURI()));
     }
 
+    @ExceptionHandler(FaceEncodingAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleFaceEncodingAlreadyExists(
+            FaceEncodingAlreadyExistsException ex, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse(ex.getMessage(), request.getRequestURI()));
+    }
+
     /**
      * Handle no face detected in photo
      * Returns 422 Unprocessable Entity

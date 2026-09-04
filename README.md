@@ -146,6 +146,16 @@ POST /api/attendance/sessions/{id}/mark-by-face
 GET /api/attendance/my-attendance
 ```
 
+### Face enrolment (admin only)
+
+```text
+POST /upload/{studentId}
+POST /upload/{studentId}?replace=true
+```
+
+The endpoint accepts a `photo` multipart field containing a JPEG or PNG image up
+to 5 MB. Replacing an existing face encoding must be requested explicitly.
+
 ### Lecturer
 
 ```text
