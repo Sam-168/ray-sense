@@ -51,31 +51,35 @@ public class SecurityConfig {
                                 "/api/auth/**",
                                 "/api/students/register-with-photo",
                                 "/api/health",
-                                "/api/face-recognition/health"
+                                "/health"
                         ).permitAll()
 
                         // STUDENT endpoints
                         .requestMatchers(
                                 "/api/attendance/sessions/*/mark-by-face",
                                 "/api/attendance/active-sessions",
-                                "/api/attendance/my-attendance",
-                                "/api/attendance/student/**"
+                                "/api/attendance/my-attendance"
                         ).hasRole("STUDENT")
 
                         // LECTURER endpoints
-                        .requestMatchers(
-                                "/api/lecturer/**",
-                                "/api/lecturer/sections/*/sessions/start",
-                                "/api/lecturer/sessions/*/end",
-                                "/api/lecturer/sessions/*/live"
-                        ).hasRole("LECTURER")
+                        .requestMatchers("/api/lecturer/**")
+                        .hasRole("LECTURER")
 
                         // ADMIN endpoints
-                        .requestMatchers("/api/admin/**")
+                        .requestMatchers(
+                                "/api/admin/**",
+                                "/api/students/**",
+                                "/upload/**",
+                                "/api/test/**",
+                                "/api/attendance/today",
+                                "/api/attendance/date/**",
+                                "/api/attendance/student/**",
+                                "/api/attendance/session/**"
+                        )
                         .hasRole("ADMIN")
 
-                        // Authenticated fallback
-                        .anyRequest().authenticated()
+                        // Deny new or forgotten endpoints until explicitly classified above.
+                        .anyRequest().denyAll()
                 )
 
                 // Stateless session (JWT system)
