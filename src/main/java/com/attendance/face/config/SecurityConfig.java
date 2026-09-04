@@ -2,6 +2,7 @@ package com.attendance.face.config;
 
 import com.attendance.face.config.JwtAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -16,6 +17,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -24,10 +26,17 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
+    private final List<String> allowedOrigins;
 
     @Autowired
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter) {
+    public SecurityConfig(
+            JwtAuthenticationFilter jwtAuthFilter,
+            @Value("${cors.allowed.origins}") String allowedOrigins) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isEmpty())
+                .toList();
     }
 
     @Bean
@@ -101,11 +110,7 @@ public class SecurityConfig {
         // Allow credentials (JWT headers)
         config.setAllowCredentials(true);
 
-        // Allowed origins (DEV + PROD)
-        config.setAllowedOrigins(List.of(
-                "http://localhost:5173",
-                "https://ray-sense.vercel.app"
-        ));
+        config.setAllowedOrigins(allowedOrigins);
 
         // Allowed methods
         config.setAllowedMethods(List.of(

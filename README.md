@@ -22,11 +22,11 @@ The backend exposes RESTful APIs consumed by the Vue.js frontend.
 
 Vue.js Frontend (Vercel)
 ↓
-Spring Boot Backend API (Railway)
+Spring Boot Backend API (Render)
 ↓
-FastAPI Face Recognition Service (Railway)
+FastAPI Face Recognition Service (Render)
 ↓
-MySQL Database (Railway)
+MySQL Database (Aiven)
 
 ---
 
@@ -40,7 +40,7 @@ MySQL Database (Railway)
 - Face recognition integration
 - RESTful APIs
 - MySQL integration
-- Railway deployment
+- Render deployment
 
 ---
 
@@ -53,21 +53,22 @@ MySQL Database (Railway)
 - Hibernate / JPA
 - MySQL
 - Maven
-- Railway
+- Render
+- Aiven for MySQL
 
 ---
 
 ## Environment Variables
 
 ```env
-DATABASE_URL=jdbc:mysql://your-host:3306/your-db
+DATABASE_URL=jdbc:mysql://your-aiven-host:your-port/defaultdb?sslmode=require
 DATABASE_USERNAME=your-username
 DATABASE_PASSWORD=your-password
 
 JWT_SECRET=your-secret
 JWT_EXPIRATION=43200000
 
-PYTHON_SERVICE_URL=https://your-python-service.up.railway.app
+PYTHON_SERVICE_URL=https://your-face-service.onrender.com
 
 CORS_ALLOWED_ORIGINS=https://your-frontend.vercel.app
 ```
@@ -184,14 +185,23 @@ ResponseEntity<FaceEncodingResponse> response =
 
 ## Deployment
 
-The backend is deployed on Railway.
+The root `render.yaml` defines the backend as a free Render web service.
 
 ### Deployment Steps
 
-1. Push repository to GitHub
-2. Connect repository to Railway
-3. Configure environment variables
-4. Deploy
+1. Deploy the face-recognition service and copy its public Render URL.
+2. Create an Aiven for MySQL service and copy its connection values.
+3. In Render, create a Blueprint from this repository.
+4. Enter the requested database credentials and face-service URL.
+5. Deploy, then verify `/api/health`.
+
+Use this format for `DATABASE_URL`:
+
+```text
+jdbc:mysql://HOST:PORT/defaultdb?sslmode=require
+```
+
+The Blueprint generates `JWT_SECRET` automatically. Database credentials remain dashboard-managed secrets and are not committed to source control. Production deployments do not create the development sample accounts.
 
 ---
 
@@ -202,7 +212,7 @@ The backend is deployed on Railway.
 - Environment variable management
 - Microservice communication
 - Base64 image handling
-- Railway deployment debugging
+- Cloud deployment debugging
 - Production database connectivity
 
 ---
